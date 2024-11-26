@@ -1,5 +1,4 @@
 from datetime import datetime
-
 import uuid
 
 class TransactionRepository:
@@ -45,11 +44,4 @@ class TransactionRepository:
             record = result.single()
             if record:
                 return dict(record)
-                # return {
-                # 'source_id': record['source_id'],
-                # 'target_id': record['target_id'],
-                # 'amount': record['amount'],
-                # 'timestamp': record['timestamp'],
-                # 'currency': record['currency']
-                # }
             return None

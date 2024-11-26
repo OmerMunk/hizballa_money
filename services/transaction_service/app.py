@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 import logging
 
-from init_db import neo4j_driver, init_neo4j, init_redis
+from init_db import init_neo4j, init_redis
 from transaction_bp import transaction_bp
 
 
@@ -24,6 +24,8 @@ def search_transactions():
 
 
 app.register_blueprint(transaction_bp, url_prefix='/api/v1/transaction')
+
+
 with app.app_context():
     app.neo4j_driver = init_neo4j()
     app.redis_client = init_redis()

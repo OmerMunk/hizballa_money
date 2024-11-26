@@ -3,6 +3,7 @@ import json
 import logging
 
 
+
 from neo4j_service import TransactionRepository
 
 transaction_bp = Blueprint('transaction_bp', __name__)
