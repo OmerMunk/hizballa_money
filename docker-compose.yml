@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:4.4
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+
+  redis:
+    image: redis:6.2
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  transaction-service:
+    build:
+      context: ./services/transaction_service
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5000"
+    depends_on:
+      - neo4j
+      - redis
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - REDIS_URI=redis://redis:6379
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+
+  analysis-service:
+    build:
+      context: ./services/analysis_service
+      dockerfile: Dockerfile
+    ports:
+      - "5002:5000"
+    depends_on:
+      - neo4j
+      - redis
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - REDIS_URI=redis://redis:6379
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+
+  scoring-service:
+    build:
+      context: ./services/scoring_service
+      dockerfile: Dockerfile
+    ports:
+      - "5003:5000"
+    depends_on:
+      - neo4j
+      - redis
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - REDIS_URI=redis://redis:6379
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  redis_data:
