@@ -1,11 +1,17 @@
 from datetime import datetime, timedelta
 import pandas as pd
+import networkx as nx
+import matplotlib.pyplot as plt
+import io
+
+from fontTools.ttLib.woff2 import bboxFormat
+
 
 class GraphAnalyzer:
     def __init__(self, driver):
         self.driver = driver
 
-    def find_circular_patterns(self, min_amount=10_000):
+    def find_circular_patterns(self, min_amount=10_000, max_depth=5):
         with self.driver.session() as session:
             query = """
             MATCH path = (a:Account)-[:TRANSACTION*1..%d]->(a)
@@ -15,7 +21,7 @@ class GraphAnalyzer:
                    length(path) as cycle_length
             ORDER BY cycle_length
             LIMIT 10
-            """ % 4
+            """ % max_depth
 
             result = session.run(query, {'min_amount': min_amount})
 
@@ -40,7 +46,6 @@ class GraphAnalyzer:
                 patterns.append(pattern)
 
             return patterns
-
 
     def calculate_metrics(self, timeframe_hours=24):
         with self.driver.session() as session:
@@ -73,8 +78,49 @@ class GraphAnalyzer:
 
             return metrics
 
+    def generate_network_visualization(self, min_amount=50_000):
+        with self.driver.session() as session:
+            query = """
+                        MATCH (source)-[t:TRANSACTION]->(target)
+                        WHERE t.amount >= $min_amount
+                        RETURN source.id as source,
+                                target.id as target,
+                                t.amount as amount
+                        LIMIT 100
+                        """
+            result = session.run(query, {'min_amount': min_amount})
+
+            graph = nx.DiGraph()
+            for record in result:
+                graph.add_edge(
+                    record['source'],
+                    record['target'],
+                    weight=record['amount']
+                )
+
+            plt.figure(figsize=(12, 8))
+            position = nx.spring_layout(graph)
+            nx.draw(
+                graph,
+                position,
+                with_labels=True,
+                node_color='yellow',
+                node_size=350,
+                arrowsize=20,
+                font_size=8
+            )
+
+
+            buffer = io.BytesIO()
+            plt.savefig(buffer, format='png',
+                        bbox_inches='tight',
+                        bboxFormat='tight')
+            buffer.seek(0)
+            plt.close()
+            return buffer
 
 
 
-    def generate_network_visualization(self):
-        pass
+
+
+
