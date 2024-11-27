@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   neo4j:
-    image: neo4j:4.4
+    image: neo4j:latest
     ports:
       - "7474:7474"
       - "7687:7687"
@@ -14,7 +14,7 @@ services:
       - neo4j_logs:/logs
 
   redis:
-    image: redis:6.2
+    image: redis:latest
     ports:
       - "6379:6379"
     volumes:
@@ -37,7 +37,7 @@ services:
 
   analysis-service:
     build:
-      context: ./services/analysis_service
+      context: ./services/graph_analysis_service
       dockerfile: Dockerfile
     ports:
       - "5002:5000"
@@ -55,7 +55,7 @@ services:
       context: ./services/scoring_service
       dockerfile: Dockerfile
     ports:
-      - "5003:5000"
+      - "5003:5003"
     depends_on:
       - neo4j
       - redis

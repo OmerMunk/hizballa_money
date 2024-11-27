@@ -55,7 +55,10 @@ class SuspiciousPatternGenerator:
                 len(current_accounts) * 2
             )
 
-            amount_per_tx = main_amount / len(next_accounts)
+            if (len(next_accounts) != 0):
+                amount_per_tx = main_amount / len(next_accounts)
+            else:
+                amount_per_tx = 0
 
             for source in current_accounts:
                 for _ in range(2):  # Split into two

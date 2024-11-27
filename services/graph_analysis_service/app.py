@@ -1,4 +1,6 @@
 # services/analysis_service/app.py
+from math import lgamma
+
 from flask import Flask, request, jsonify, send_file
 import networkx as nx
 from neo4j import GraphDatabase
@@ -8,8 +10,12 @@ import matplotlib.pyplot as plt
 import io
 from datetime import datetime, timedelta
 import json
+import logging
 
 app = Flask(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
+app.logger.info('Starting analysis service')
 
 neo4j_driver = GraphDatabase.driver(
     "bolt://neo4j:7687",
@@ -28,6 +34,7 @@ class GraphAnalyzer:
         self.driver = driver
 
     def find_circular_patterns(self, min_amount=10000, max_depth=4):
+        app.logger.info('Starting find_circular_patterns')
         with self.driver.session() as session:
             query = """
             MATCH path = (a:Account)-[:TRANSACTION*1..%d]->(a)
@@ -48,7 +55,7 @@ class GraphAnalyzer:
                     'transactions': [{
                         'amount': tx['amount'],
                         'currency': tx['currency'],
-                        'timestamp': tx['timestamp']
+                        'timestamp': f'{tx["timestamp"]}'
                     } for tx in record['transactions']],
                     'cycle_length': record['cycle_length']
                 }
@@ -121,7 +128,7 @@ class GraphAnalyzer:
 
             # Save plot to bytes buffer
             buf = io.BytesIO()
-            plt.savefig(buf, format='png')
+            plt.savefig(buf, format='png', bbox_inches='tight')
             buf.seek(0)
             plt.close()
 
@@ -130,24 +137,29 @@ class GraphAnalyzer:
 
 @app.route('/api/v1/analysis/patterns', methods=['GET'])
 def analyze_patterns():
+    app.logger.info('in analyze_patterns')
     min_amount = float(request.args.get('min_amount', 10000))
     max_depth = int(request.args.get('max_depth', 4))
 
     try:
         analyzer = GraphAnalyzer(neo4j_driver)
         patterns = analyzer.find_circular_patterns(min_amount, max_depth)
+        app.logger.info(f'Found {len(patterns)} patterns')
 
         # Cache the results
         cache_key = f'patterns_{min_amount}_{max_depth}'
+        app.logger.info(f'Caching results with key: {cache_key}')
         redis_client.setex(
             cache_key,
             3600,  # Cache for 1 hour
-            json.dumps(patterns)
+            json.dumps(f'{patterns}')
         )
+        app.logger.info(f'going to return {patterns}')
 
         return jsonify(patterns), 200
 
     except Exception as e:
+        app.logger.error('error in analyze_patterns: {e}')
         return jsonify({'error': str(e)}), 500
 
 
@@ -175,6 +187,7 @@ def get_metrics():
         return jsonify(metrics), 200
 
     except Exception as e:
+        print(f'error in get_metrics: {e}')
         return jsonify({'error': str(e)}), 500
 
 
@@ -194,6 +207,7 @@ def get_visualization():
         )
 
     except Exception as e:
+        print(f'error in get_visualization: {e}')
         return jsonify({'error': str(e)}), 500
 
 
