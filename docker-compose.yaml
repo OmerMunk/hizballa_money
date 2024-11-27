@@ -35,6 +35,21 @@ services:
       - FLASK_APP=app.py
       - FLASK_ENV=development
 
+  analysis-service:
+    build:
+      context: ./services/graph_analysis_service
+      dockerfile: Dockerfile
+    ports:
+      - "5002:5002"
+    depends_on:
+      - neo4j
+      - redis
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - REDIS_URI=redis://redis:6379
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+
 
 
 volumes:
