@@ -1,7 +1,8 @@
 import json
+from datetime import datetime, timedelta
+import pandas as pd
 
-from flask import Flask, request, jsonify
-
+from flask import Flask, request, jsonify, current_app
 
 app = Flask(__name__)
 
@@ -62,8 +63,38 @@ class GraphAnalyzer:
         pass
 
 
-    def calculate_metrics(self):
-        pass
+    def calculate_metrics(self, timeframe_hours=24):
+        with self.driver.session() as session:
+            query = """
+            MATCH (source)-[t:TRANSACTION]->(target)
+            WHERE t.timestamp >= datetime($start_time)
+            RETURN sum(t.amount) as total_amount,
+                   count(t) as total_transactions,
+                   avg(t.amount) as avg_amount,
+                   collect(t.amount) as amounts
+            """
+
+            start_time = (datetime.now() - timedelta(hours=timeframe_hours)).isoformat()
+            result = session.run(query, {'start_time': start_time})
+            record = result.single()
+
+            amounts = pd.Series(record['amounts'])
+            metrics = {
+                'total_transactions': record['total_transactions'],
+                'total_amount': record['total_amount'],
+                'avg_amount': record['avg_amount'],
+                'std_dev': amounts.std(),
+                'percentiles': {
+                    '25': amounts.quantile(0.25),
+                    '50': amounts.quantile(0.5),
+                    '75': amounts.quantile(0.75),
+                    '90': amounts.quantile(0.9),
+                }
+            }
+
+            return metrics
+
+
 
 
     def generate_network_visualization(self):
@@ -72,7 +103,7 @@ class GraphAnalyzer:
 
 @app.route('/api/v1/analysis/patterns', methods=['GET'])
 def analyze_patterns():
-    min_amount = request.args.get('min_amount', 10_000)
+    min_amount = float(request.args.get('min_amount', 10_000))
 
     try:
         cached_result = redis_client.get(f'patterns_{min_amount}')
@@ -100,7 +131,28 @@ def analyze_patterns():
 
 @app.route('/api/v1/analysis/metrics', methods=['GET'])
 def get_metrics():
-    return "Patterns Analysis"
+    timeframe = int(request.args.get('timeframe_hours', 24))
+    cache_key = f'metrics_{timeframe}'
+
+    # קודם כל בוא ננסה להביא מהקאש
+    cached_metrics = current_app.redis_client.get(cache_key)
+    if cached_metrics:
+        return jsonify(json.loads(cached_metrics)), 200
+
+    try:
+        analyzer = GraphAnalyzer(current_app.neo4j_driver)
+        metrics = analyzer.calculate_metrics(timeframe)
+
+        current_app.redis_client.setex(
+            cache_key,
+            600, # 10 minutes
+        json.dumps(metrics)
+        )
+
+        return jsonify(metrics), 200
+    except Exception as ex:
+        print(ex)
+        return jsonify({"error": str(ex)}), 500
 
 
 @app.route('/api/v1/analysis/visualization', methods=['GET'])
